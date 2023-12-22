@@ -12,18 +12,20 @@ from os import environ
 
 log = logging.getLogger(__name__)
 
+# keycloak settings
 keycloak = Blueprint('keycloak', __name__, url_prefix='/user')
-
 server_url = tk.config.get('ckanext.keycloak.server_url', environ.get('CKANEXT__KEYCLOAK__SERVER_URL'))
 client_id = tk.config.get('ckanext.keycloak.client_id', environ.get('CKANEXT__KEYCLOAK__CLIENT_ID'))
 realm_name = tk.config.get('ckanext.keycloak.realm_name', environ.get('CKANEXT__KEYCLOAK__REALM_NAME'))
-
+client_secret_key = tk.config.get('ckanext.keycloak.client_secret_key',
+                                  environ.get('CKANEXT__KEYCLOAK__CLIENT_SECRET_KEY'))
+# redirect settings
 root_path = tk.config.get('ckan.root_path') if tk.config.get('ckan.root_path') else ""
 redirect_uri = tk.config.get('ckan.site_url')+root_path+'/user/sso_login'
 redirect_uri_autologin = tk.config.get('ckan.site_url')+root_path+'/user/sso_autologin'
 
-client_secret_key = tk.config.get('ckanext.keycloak.client_secret_key',
-                                  environ.get('CKANEXT__KEYCLOAK__CLIENT_SECRET_KEY'))
+# name of keycloak group, its users are allowed to login
+ckan_login_group = tk.config.get('ckanext.keycloak.login_group', environ.get('CKANEXT__KEYCLOAK__LOGIN_GROUP'))
 
 client = KeycloakClient(server_url, client_id, realm_name, client_secret_key)
 
@@ -65,7 +67,7 @@ def sso_login():
     usergroups = client.get_user_groups(token)
     log.info("User Info: {}".format(userinfo))
 
-    is_user_ckan_admin = 'ckan_admin' in usergroups
+    is_user_ckan_admin = ckan_login_group in usergroups
 
     if userinfo and is_user_ckan_admin:  # only login if admin
         user_dict = {
@@ -145,6 +147,7 @@ def sso_autologin():
 @keycloak.before_app_request
 def before_app_request():
     # if already logged in
+    log.info(f"Before Endpoint: {tk.request.endpoint}")
     user_ckan = tk.current_user.name
     log.info(f"Current user: {user_ckan}")
 
@@ -152,6 +155,7 @@ def before_app_request():
         pass
     # if not logged in, check if keycloak has cookie already
     else:
+        # log.info(f"Current user: {user_ckan}")
         if tk.request.endpoint == 'home.index':
             log.info(f"Trying Auto-login")
             return tk.redirect_to('keycloak.sso_autologin')
