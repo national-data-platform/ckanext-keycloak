@@ -1,4 +1,6 @@
 import logging
+from time import sleep
+
 from flask import Blueprint
 from ckan.plugins import toolkit as tk
 import ckan.lib.helpers as h
@@ -15,7 +17,11 @@ keycloak = Blueprint('keycloak', __name__, url_prefix='/user')
 server_url = tk.config.get('ckanext.keycloak.server_url', environ.get('CKANEXT__KEYCLOAK__SERVER_URL'))
 client_id = tk.config.get('ckanext.keycloak.client_id', environ.get('CKANEXT__KEYCLOAK__CLIENT_ID'))
 realm_name = tk.config.get('ckanext.keycloak.realm_name', environ.get('CKANEXT__KEYCLOAK__REALM_NAME'))
-redirect_uri = tk.config.get('ckanext.keycloak.redirect_uri', environ.get('CKANEXT__KEYCLOAK__REDIRECT_URI'))
+
+root_path = tk.config.get('ckan.root_path') if tk.config.get('ckan.root_path') else ""
+redirect_uri = tk.config.get('ckan.site_url')+root_path+'/user/sso_login'
+redirect_uri_autologin = tk.config.get('ckan.site_url')+root_path+'/user/sso_autologin'
+
 client_secret_key = tk.config.get('ckanext.keycloak.client_secret_key',
                                   environ.get('CKANEXT__KEYCLOAK__CLIENT_SECRET_KEY'))
 
@@ -118,16 +124,20 @@ def sso_autologin():
 
     if len(data):
         if data.get('code'):
+            log.info("Code found in the URL parameters")
             return tk.redirect_to('keycloak.sso')  # complete login/create user
         elif data.get('error'):
+            log.info("Code not found in the URL parameters")
             return tk.redirect_to('organization.index')  # redirect to organizations page
     else:
         # check keycloak for logged in state
+        log.info("No URL parameters. Check keycloak for logged in state")
         try:
-            auth_url = client.get_auth_url(redirect_uri=f"{environ.get('CKAN_SITE_URL')}/user/sso_autologin")
+            auth_url = client.get_auth_url(redirect_uri=redirect_uri_autologin)
         except Exception as e:
             log.error("Error getting auth url: {}".format(e))
             return tk.abort(500, "Error getting auth url: {}".format(e))
+        log.info("Redirecting to Keycloak")
         return tk.redirect_to(auth_url + '&prompt=none')  # &prompt=none is for skipping the UI of keycloak
 
 
@@ -136,11 +146,14 @@ def sso_autologin():
 def before_app_request():
     # if already logged in
     user_ckan = tk.current_user.name
+    log.info(f"Current user: {user_ckan}")
+
     if user_ckan:
         pass
     # if not logged in, check if keycloak has cookie already
     else:
         if tk.request.endpoint == 'home.index':
+            log.info(f"Trying Auto-login")
             return tk.redirect_to('keycloak.sso_autologin')
 
 
