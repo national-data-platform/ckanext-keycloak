@@ -139,7 +139,7 @@ def sso_autologin():
         except Exception as e:
             log.error("Error getting auth url: {}".format(e))
             return tk.abort(500, "Error getting auth url: {}".format(e))
-        log.info("Redirecting to Keycloak")
+        # log.info("Redirecting to Keycloak")
         return tk.redirect_to(auth_url + '&prompt=none')  # &prompt=none is for skipping the UI of keycloak
 
 
@@ -147,9 +147,9 @@ def sso_autologin():
 @keycloak.before_app_request
 def before_app_request():
     # if already logged in
-    log.info(f"Before Endpoint: {tk.request.endpoint}")
+    # log.info(f"Before Endpoint: {tk.request.endpoint}")
     user_ckan = tk.current_user.name
-    log.info(f"Current user: {user_ckan}")
+    # log.info(f"Current user: {user_ckan}")
 
     if user_ckan:
         pass
@@ -157,7 +157,7 @@ def before_app_request():
     else:
         # log.info(f"Current user: {user_ckan}")
         if tk.request.endpoint == 'home.index':
-            log.info(f"Trying Auto-login")
+            # log.info(f"Trying Auto-login")
             return tk.redirect_to('keycloak.sso_autologin')
 
 
